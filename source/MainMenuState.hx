@@ -34,7 +34,7 @@ class MainMenuState extends MusicBeatState
     },
     {
       id: 'options',
-      image: 'mainmenu/menu_options', // menu_options.png + menu_options.xml
+      image: 'customMenu/buttons/menu_options', // il TUO menu_options.png + menu_options.xml (stessa cartella di button2)
       idle: 'options basic',
       selected: 'options white'
     }
@@ -114,8 +114,10 @@ class MainMenuState extends MusicBeatState
 
       final menuItem:FlxSprite = new FlxSprite(0, baseY + (i * spacing));
       menuItem.frames = Paths.getSparrowAtlas(b.image);
-      menuItem.animation.addByPrefix('idle', b.idle, 24);
-      menuItem.animation.addByPrefix('selected', b.selected, 24);
+      final prefixes:Array<String> = getAnimPrefixes(menuItem);
+      trace('[MainMenu] ' + b.id + ' (' + b.image + ') animazioni trovate: ' + prefixes);
+      menuItem.animation.addByPrefix('idle', resolvePrefix(prefixes, b.idle, ['basic', 'idle', 'normal'], 0), 24);
+      menuItem.animation.addByPrefix('selected', resolvePrefix(prefixes, b.selected, ['white', 'select', 'hover', 'high'], 1), 24);
       menuItem.animation.play('idle');
       menuItem.ID = i;
       menuItem.scrollFactor.set(0, 0);
@@ -185,6 +187,35 @@ class MainMenuState extends MusicBeatState
     }
 
     super.update(elapsed);
+  }
+
+  // Elenco dei prefissi delle animazioni presenti nell'xml (nome frame senza il numero finale)
+  function getAnimPrefixes(spr:FlxSprite):Array<String>
+  {
+    final result:Array<String> = [];
+    if (spr.frames == null) return result;
+
+    for (frame in spr.frames.frames)
+    {
+      if (frame == null || frame.name == null) continue;
+      final prefix:String = ~/[0-9]+$/.replace(frame.name, '');
+      if (!result.contains(prefix)) result.push(prefix);
+    }
+    return result;
+  }
+
+  // Usa il prefisso scritto in config se esiste nell'xml, altrimenti lo cerca per parola chiave,
+  // altrimenti prende il primo (idle) / il secondo (selected) prefisso dell'xml.
+  function resolvePrefix(available:Array<String>, configured:String, keywords:Array<String>, fallbackIndex:Int):String
+  {
+    if (available.contains(configured)) return configured;
+
+    for (p in available)
+      for (k in keywords)
+        if (p.toLowerCase().indexOf(k) != -1) return p;
+
+    if (available.length == 0) return configured;
+    return available[Std.int(Math.min(fallbackIndex, available.length - 1))];
   }
 
   function confirmSelection()
