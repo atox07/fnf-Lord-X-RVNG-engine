@@ -39,13 +39,35 @@ class StartupState extends MusicBeatState
 		return save;
 	}
 
+	// nomi di file accettati come flag (uno scritto dal mio crash.lua, l'altro dalla tua versione)
+	static final FLAG_FILES:Array<String> = ['conscience_crash.flag', 'crashpending.flag'];
+
 	function isCrashPending():Bool
 	{
-		return openSecretSave().data.crashPending == true;
+		var fromFile:Bool = false;
+		#if sys
+		for (f in FLAG_FILES)
+			if (sys.FileSystem.exists(f))
+				fromFile = true;
+		#end
+		var fromSave:Bool = openSecretSave().data.crashPending == true;
+		trace('[Startup] crash flag: file=' + fromFile + ' save=' + fromSave);
+		return fromFile || fromSave;
 	}
 
 	function clearCrashFlag():Void
 	{
+		#if sys
+		for (f in FLAG_FILES)
+		{
+			try
+			{
+				if (sys.FileSystem.exists(f))
+					sys.FileSystem.deleteFile(f);
+			}
+			catch (e:Dynamic) {}
+		}
+		#end
 		var save = openSecretSave();
 		save.data.crashPending = false;
 		save.flush();
