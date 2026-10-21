@@ -482,6 +482,9 @@ class FreeplayState extends MusicBeatState
   // legge il save scritto dal Lua (initSaveData('conscienceSecret', 'conscienceSecret'))
   function isSecretUnlocked():Bool
   {
+    #if sys
+    if (sys.FileSystem.exists('conscience_unlocked.flag')) return true; // scritto da unlock.lua
+    #end
     final save:FlxSave = new FlxSave();
     save.bind('conscienceSecret', 'conscienceSecret');
     return save.data.unlocked == true;
