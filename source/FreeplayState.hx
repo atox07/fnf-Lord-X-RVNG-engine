@@ -4,6 +4,7 @@ import WeekData;
 import editors.ChartingState;
 import flixel.addons.display.FlxBackdrop;
 import flixel.util.FlxSave;
+import flixel.util.FlxTimer;
 
 /**
  * Freeplay custom (porting di freeplay.lua).
@@ -62,6 +63,9 @@ class FreeplayState extends MusicBeatState
   var sidebarW:Float = 0;
 
   // Questi static servono ad altri file (PlayState, MainMenuState...): NON rimuoverli
+  // true = apri il freeplay, seleziona la canzone segreta e avviala da solo (lo imposta StartupState)
+  public static var autoStartSecret:Bool = false;
+
   public static var curPlaying:Bool = false;
   public static var instPlaying:Int = -1;
   public static var vocals:FlxSound = null;
@@ -175,12 +179,52 @@ class FreeplayState extends MusicBeatState
     updateWeekFrames(true);
 
     super.create();
+
+    if (autoStartSecret) startSecretSong();
+  }
+
+  // avvio automatico di conscience dopo introrestart: schermo nero sopra tutto e poi parte la canzone
+  function startSecretSong()
+  {
+    autoStartSecret = false;
+    busy = true;
+
+    final cover:FlxSprite = new FlxSprite().makeGraphic(FlxG.width, FlxG.height, FlxColor.BLACK);
+    cover.scrollFactor.set(0, 0);
+    add(cover);
+
+    var found:Bool = false;
+    for (w in 0...weekGroups.length)
+    {
+      for (s in 0...weekGroups[w].songs.length)
+      {
+        if (Paths.formatToSongPath(weekGroups[w].songs[s].songName) == SECRET_SONG)
+        {
+          weekSelec = w;
+          songSelec = s;
+          found = true;
+        }
+      }
+    }
+
+    if (!found)
+    {
+      trace('[Freeplay] canzone segreta non trovata, torno al menu');
+      FlxG.switchState(TitleState.new);
+      return;
+    }
+
+    new FlxTimer().start(0.1, function(tmr:FlxTimer)
+    {
+      inSongs = true;
+      playSelectedSong();
+    });
   }
 
   function collectWeeks(accept:(WeekData, String) -> Bool)
   {
     weekGroups = [];
-    final secretUnlocked:Bool = isSecretUnlocked();
+    final secretUnlocked:Bool = isSecretUnlocked() || autoStartSecret;
 
     for (i in 0...WeekData.weeksList.length)
     {
@@ -462,7 +506,7 @@ class FreeplayState extends MusicBeatState
       else
         LoadingState.loadAndSwitchState(PlayState.new);
 
-      FlxG.sound.music.volume = 0;
+      if (FlxG.sound.music != null) FlxG.sound.music.volume = 0;
       destroyFreeplayVocals();
     }
     else
