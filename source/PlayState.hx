@@ -5536,7 +5536,7 @@ class PlayState extends MusicBeatState
 			FlxG.stage.removeEventListener(KeyboardEvent.KEY_UP, onKeyRelease);
 		}
 		FlxG.animationTimeScale = 1;
-		FlxG.sound.music.pitch = 1;
+		if (FlxG.sound.music != null) FlxG.sound.music.pitch = 1;
 		cpp.vm.Gc.enable(true);
 		KillNotes();
 		unspawnNotes = [];
