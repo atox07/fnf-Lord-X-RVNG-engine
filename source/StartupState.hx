@@ -1,6 +1,7 @@
 package;
 
 import flixel.FlxG;
+import flixel.util.FlxTimer;
 import flixel.addons.transition.FlxTransitionableState;
 
 class StartupState extends MusicBeatState
@@ -14,9 +15,15 @@ class StartupState extends MusicBeatState
 		FlxTransitionableState.skipNextTransOut = true;
 		FlxG.mouse.visible = false;
 
-		startIntro();
-
 		super.create();
+
+		// Piccolo ritardo: il video va creato quando lo state è già attivo,
+		// altrimenti si sente l'audio ma non si vede l'immagine
+		new FlxTimer().start(0.1, function(tmr:FlxTimer)
+		{
+			if (!leaving)
+				startIntro();
+		});
 	}
 
 	function startIntro():Void
