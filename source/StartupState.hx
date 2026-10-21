@@ -1,6 +1,7 @@
 package;
 
 import flixel.FlxG;
+import haxe.Json;
 import flixel.util.FlxTimer;
 import flixel.util.FlxSave;
 import flixel.addons.transition.FlxTransitionableState;
@@ -30,17 +31,17 @@ class StartupState extends MusicBeatState
 		});
 	}
 
+	// stesso save scritto da the-strongest-enemy/crash.lua
 	function openSecretSave():FlxSave
 	{
 		var save:FlxSave = new FlxSave();
-		save.bind('conscienceSecret', 'conscienceSecret'); // stessi nomi usati nel Lua
+		save.bind('conscienceSecret', 'conscienceSecret');
 		return save;
 	}
 
 	function isCrashPending():Bool
 	{
-		var save = openSecretSave();
-		return save.data.crashPending == true;
+		return openSecretSave().data.crashPending == true;
 	}
 
 	function clearCrashFlag():Void
@@ -106,24 +107,29 @@ class StartupState extends MusicBeatState
 
 		try
 		{
-			// Normalmente lo fa TitleState: qui lo saltiamo, quindi lo rifacciamo
-			FlxG.save.bind('funkin', 'ninjamuffin99');
-			ClientPrefs.loadPrefs();
+			// Quello che TitleState.create() fa e che serve al resto del gioco (Freeplay incluso)
 			Highscore.load();
-			#if MODS_ALLOWED
-			Paths.pushGlobalMods();
-			#end
-			WeekData.loadTheFirstEnabledMod();
+			TitleState.titleJSON = Json.parse(Paths.getTextFromFile('images/gfDanceTitle.json'));
+			if (FlxG.save.data.weekCompleted != null)
+				StoryMenuState.weekCompleted = FlxG.save.data.weekCompleted;
 
+			// stessa logica di FreeplayState: difficoltà di default
 			CoolUtil.difficulties = CoolUtil.defaultDifficulties.copy();
-			PlayState.storyDifficulty = 1; // Normal -> conscience.json
-			PlayState.isStoryMode = false;
-			PlayState.SONG = Song.loadFromJson('conscience', 'conscience');
+			var defIndex:Int = CoolUtil.difficulties.indexOf(CoolUtil.defaultDifficulty);
+			var diff:Int = defIndex > -1 ? defIndex : 0;
+			PlayState.storyDifficulty = diff;
+			CoolUtil.currentDifficulty = CoolUtil.difficultyString();
+
+			var song:String = 'conscience';
+			var chart:String = Highscore.formatSong(song, diff);
+
+			PlayState.SONG = Song.loadFromJson(chart, song);
+			PlayState.isStoryMode = PlayState.wasOriginallyFreeplay = ClientPrefs.alwaysTriggerCutscene;
 
 			if (FlxG.sound.music != null)
 				FlxG.sound.music.stop();
 
-			LoadingState.loadAndSwitchState(new PlayState(), true);
+			LoadingState.loadAndSwitchState(PlayState.new);
 		}
 		catch (e:Dynamic)
 		{
