@@ -129,77 +129,20 @@ class StartupState extends MusicBeatState
 
 		try
 		{
-			// Quello che TitleState.create() fa e che serve al resto del gioco (Freeplay incluso)
+			// Quello che TitleState.create() fa e che serve al Freeplay
 			Highscore.load();
 			TitleState.titleJSON = Json.parse(Paths.getTextFromFile('images/gfDanceTitle.json'));
 			if (FlxG.save.data.weekCompleted != null)
 				StoryMenuState.weekCompleted = FlxG.save.data.weekCompleted;
 
-			// Come fa FreeplayState: PlayState si aspetta che le settimane siano caricate,
-			// che storyWeek punti alla settimana giusta e che la cartella mod sia impostata.
-			var song:String = 'conscience';
-			WeekData.reloadWeekFiles(false);
+			// Il resto del gioco (Freeplay, PlayState) si aspetta che la musica del menu esista:
+			// TitleState la avvia, ma noi lo saltiamo. Parte a volume 0.
+			Paths.playMenuMusic(true, 0);
 
-			var weekIndex:Int = -1;
-			for (i in 0...WeekData.weeksList.length)
-			{
-				var leWeek:WeekData = WeekData.weeksLoaded.get(WeekData.weeksList[i]);
-				if (leWeek == null)
-					continue;
-				for (sg in leWeek.songs)
-				{
-					if (Paths.formatToSongPath(sg[0]) == song)
-					{
-						weekIndex = i;
-						WeekData.setDirectoryFromWeek(leWeek);
-						break;
-					}
-				}
-				if (weekIndex > -1)
-					break;
-			}
-			if (weekIndex < 0)
-				throw 'conscience non trovata in nessun weeks/*.json';
-
-			PlayState.storyWeek = weekIndex;
-
-			// difficoltà: stessa logica di FreeplayState.setupDifficulties()
-			CoolUtil.difficulties = CoolUtil.defaultDifficulties.copy();
-			var diffStr:String = WeekData.getCurrentWeek().difficulties;
-			if (diffStr != null)
-				diffStr = diffStr.trim();
-			if (diffStr != null && diffStr.length > 0)
-			{
-				var diffs:Array<String> = diffStr.split(',');
-				var k:Int = diffs.length - 1;
-				while (k > 0)
-				{
-					if (diffs[k] != null)
-					{
-						diffs[k] = diffs[k].trim();
-						if (diffs[k].length < 1)
-							diffs.remove(diffs[k]);
-					}
-					--k;
-				}
-				if (diffs.length > 0 && diffs[0].length > 0)
-					CoolUtil.difficulties = diffs;
-			}
-			var defIndex:Int = CoolUtil.difficulties.indexOf(CoolUtil.defaultDifficulty);
-			var diff:Int = defIndex > -1 ? defIndex : 0;
-			PlayState.storyDifficulty = diff;
-			CoolUtil.currentDifficulty = CoolUtil.difficultyString();
-
-			var chart:String = Highscore.formatSong(song, diff);
-			trace('[Startup] conscience chart=' + chart + ' week=' + weekIndex + ' mod="' + Mods.currentModDirectory + '"');
-
-			PlayState.SONG = Song.loadFromJson(chart, song);
-			PlayState.isStoryMode = PlayState.wasOriginallyFreeplay = ClientPrefs.alwaysTriggerCutscene;
-
-			if (FlxG.sound.music != null)
-				FlxG.sound.music.stop();
-
-			LoadingState.loadAndSwitchState(PlayState.new);
+			// Passo dal Freeplay vero: lui prepara tutto quello che serve a PlayState
+			// e avvia conscience da solo (vedi FreeplayState.autoStartSecret)
+			FreeplayState.autoStartSecret = true;
+			FlxG.switchState(FreeplayState.new);
 		}
 		catch (e:Dynamic)
 		{
