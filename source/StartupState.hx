@@ -2,18 +2,22 @@ package;
 
 import flixel.FlxG;
 import flixel.util.FlxTimer;
+import flixel.util.FlxSave;
 import flixel.addons.transition.FlxTransitionableState;
 
 class StartupState extends MusicBeatState
 {
 	var vidSprite:VideoSprite = null;
 	var leaving:Bool = false;
+	var restartMode:Bool = false;
 
 	override public function create():Void
 	{
 		FlxTransitionableState.skipNextTransIn = true;
 		FlxTransitionableState.skipNextTransOut = true;
 		FlxG.mouse.visible = false;
+
+		restartMode = isCrashPending();
 
 		super.create();
 
@@ -26,10 +30,30 @@ class StartupState extends MusicBeatState
 		});
 	}
 
+	function openSecretSave():FlxSave
+	{
+		var save:FlxSave = new FlxSave();
+		save.bind('conscienceSecret', 'conscienceSecret'); // stessi nomi usati nel Lua
+		return save;
+	}
+
+	function isCrashPending():Bool
+	{
+		var save = openSecretSave();
+		return save.data.crashPending == true;
+	}
+
+	function clearCrashFlag():Void
+	{
+		var save = openSecretSave();
+		save.data.crashPending = false;
+		save.flush();
+	}
+
 	function startIntro():Void
 	{
 		#if VIDEOS_ALLOWED
-		var fileName:String = Paths.video('HaxeFlixelIntro');
+		var fileName:String = Paths.video(restartMode ? 'introrestart' : 'HaxeFlixelIntro');
 
 		#if sys
 		var found:Bool = FileSystem.exists(fileName);
@@ -40,20 +64,28 @@ class StartupState extends MusicBeatState
 		if (!found)
 		{
 			FlxG.log.error('Video not found: ' + fileName);
-			goToTitle();
+			onIntroEnd();
 			return;
 		}
 
 		// canSkip = false: lo skip lo gestiamo noi con ENTER in update()
 		vidSprite = new VideoSprite(fileName, false, false, false);
-		vidSprite.finishCallback = goToTitle;
-		vidSprite.onSkip = goToTitle;
+		vidSprite.finishCallback = onIntroEnd;
+		vidSprite.onSkip = restartMode ? function() {} : onIntroEnd;
 		insert(0, vidSprite);
 		vidSprite.videoSprite.play();
 		#else
 		FlxG.log.warn('Platform not supported!');
-		goToTitle();
+		onIntroEnd();
 		#end
+	}
+
+	function onIntroEnd():Void
+	{
+		if (restartMode)
+			goToConscience();
+		else
+			goToTitle();
 	}
 
 	function goToTitle():Void
@@ -64,9 +96,46 @@ class StartupState extends MusicBeatState
 		FlxG.switchState(TitleState.new);
 	}
 
+	function goToConscience():Void
+	{
+		if (leaving)
+			return;
+		leaving = true;
+
+		clearCrashFlag();
+
+		try
+		{
+			// Normalmente lo fa TitleState: qui lo saltiamo, quindi lo rifacciamo
+			FlxG.save.bind('funkin', 'ninjamuffin99');
+			ClientPrefs.loadPrefs();
+			Highscore.load();
+			#if MODS_ALLOWED
+			Paths.pushGlobalMods();
+			#end
+			WeekData.loadTheFirstEnabledMod();
+
+			CoolUtil.difficulties = CoolUtil.defaultDifficulties.copy();
+			PlayState.storyDifficulty = 1; // Normal -> conscience.json
+			PlayState.isStoryMode = false;
+			PlayState.SONG = Song.loadFromJson('conscience', 'conscience');
+
+			if (FlxG.sound.music != null)
+				FlxG.sound.music.stop();
+
+			LoadingState.loadAndSwitchState(new PlayState(), true);
+		}
+		catch (e:Dynamic)
+		{
+			trace('Errore caricando conscience: ' + e);
+			FlxG.switchState(TitleState.new);
+		}
+	}
+
 	override function update(elapsed:Float)
 	{
-		if (FlxG.keys.justPressed.ENTER)
+		// introrestart NON è skippabile
+		if (!restartMode && FlxG.keys.justPressed.ENTER)
 			goToTitle();
 
 		super.update(elapsed);
