@@ -3,6 +3,7 @@ package;
 import WeekData;
 import editors.ChartingState;
 import flixel.addons.display.FlxBackdrop;
+import flixel.util.FlxSave;
 
 /**
  * Freeplay custom (porting di freeplay.lua).
@@ -36,6 +37,9 @@ class FreeplayState extends MusicBeatState
   static final SONGS_CENTER_Y:Float = 320; // y centrale della lista canzoni
   static final SONGS_SPACING:Float = 60;
   static final MENU_FONT:String = 'sonic-cd-menu-font.otf';
+
+  // canzone segreta: resta nascosta finche' non viene completata (la sblocca mods/data/conscience/unlock.lua)
+  static final SECRET_SONG:String = 'conscience';
 
   // ---------------------------------------------------------------
   var weekGroups:Array<WeekGroup> = [];
@@ -176,6 +180,7 @@ class FreeplayState extends MusicBeatState
   function collectWeeks(accept:(WeekData, String) -> Bool)
   {
     weekGroups = [];
+    final secretUnlocked:Bool = isSecretUnlocked();
 
     for (i in 0...WeekData.weeksList.length)
     {
@@ -190,6 +195,8 @@ class FreeplayState extends MusicBeatState
       final list:Array<SongMetadata> = [];
       for (song in leWeek.songs)
       {
+        if (!secretUnlocked && Paths.formatToSongPath(song[0]) == SECRET_SONG) continue;
+
         var colors:Array<Int> = song[2];
         if (colors == null || colors.length < 3) colors = [146, 113, 253];
         list.push(new SongMetadata(song[0], i, song[1], FlxColor.fromRGB(colors[0], colors[1], colors[2])));
@@ -470,6 +477,14 @@ class FreeplayState extends MusicBeatState
         + ".json coincida con la cartella in data/ e con il nome del json.",
         "JS Engine Anti-Crash Tool");
     }
+  }
+
+  // legge il save scritto dal Lua (initSaveData('conscienceSecret', 'conscienceSecret'))
+  function isSecretUnlocked():Bool
+  {
+    final save:FlxSave = new FlxSave();
+    save.bind('conscienceSecret', 'conscienceSecret');
+    return save.data.unlocked == true;
   }
 
   function weekIsLocked(name:String):Bool
