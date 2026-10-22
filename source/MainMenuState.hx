@@ -5,6 +5,7 @@ import backend.HaxeCommit;
 import editors.MasterEditorMenu;
 import flixel.effects.FlxFlicker;
 import flixel.input.keyboard.FlxKey;
+import haxe.Json;
 
 /**
  * Main menu custom (porting di mainMenu.lua).
@@ -40,10 +41,14 @@ class MainMenuState extends MusicBeatState
     }
   ];
 
+  // Percorso del file di configurazione (in mods/data/mainMenu.json).
+  // Se il file manca o ha errori vengono usati questi valori di default.
+  static final CONFIG_PATH:String = 'data/mainMenu.json';
+
   // Posizione finale del primo bottone (riferita a 1280x720, come nel lua)
-  static final BUTTON_X:Float = 820;
-  static final BUTTON_Y:Float = 340;
-  static final BUTTON_SPACING:Float = 140; // distanza verticale tra i bottoni
+  var buttonX:Float = 820;
+  var buttonY:Float = 340;
+  var buttonSpacing:Float = 140; // distanza verticale tra i bottoni
 
   // Lampeggio alla conferma (come nel lua)
   static final FLICKER_INTERVAL:Float = 0.07;
@@ -55,12 +60,12 @@ class MainMenuState extends MusicBeatState
   // ---------------------------------------------------------------
   // LORD X (appare a caso a ogni ingresso nel menu)
   // ---------------------------------------------------------------
-  static final SCARY_CHANCE:Float = 60; // probabilita' in % (0-100)
-  static final SCARY_IMAGE:String = 'scaryx'; // mods/images/scaryx.png
-  static final SCARY_MUSIC:String = 'scaryMenu'; // mods/music/scaryMenu.ogg
-  static final SCARY_X:Float = 0; // posizione (riferita a 1280x720)
-  static final SCARY_Y:Float = 0;
-  static final SCARY_HEIGHT:Float = 720; // altezza finale dell'immagine (riferita a 720)
+  var scaryChance:Float = 60; // probabilita' in % (0-100)
+  var scaryImage:String = 'scaryx'; // mods/images/scaryx.png
+  var scaryMusicName:String = 'scaryMenu'; // mods/music/scaryMenu.ogg
+  var scaryX:Float = 0; // posizione (riferita a 1280x720)
+  var scaryY:Float = 0;
+  var scaryHeight:Float = 720; // altezza finale dell'immagine (riferita a 720)
 
   static var scaryMusic:Dynamic = null; // la musica scary attualmente in riproduzione (se c'e')
   var scaryMode:Bool = false;
@@ -75,6 +80,7 @@ class MainMenuState extends MusicBeatState
   override function create()
   {
     MusicBeatState.windowNameSuffix = " - Main Menu";
+    loadConfig();
     Paths.clearStoredMemory();
     Paths.clearUnusedMemory();
 
@@ -101,9 +107,9 @@ class MainMenuState extends MusicBeatState
 
     // ----- LORD X: tiro la probabilita' a ogni ingresso nel menu -----
     // (se manca il png o la musica non rischio crash: resta il menu normale)
-    scaryMode = FlxG.random.bool(SCARY_CHANCE)
-      && Paths.fileExists('images/' + SCARY_IMAGE + '.png', openfl.utils.AssetType.IMAGE)
-      && Paths.fileExists('music/' + SCARY_MUSIC + '.ogg', openfl.utils.AssetType.MUSIC);
+    scaryMode = FlxG.random.bool(scaryChance)
+      && Paths.fileExists('images/' + scaryImage + '.png', openfl.utils.AssetType.IMAGE)
+      && Paths.fileExists('music/' + scaryMusicName + '.ogg', openfl.utils.AssetType.MUSIC);
 
     final scaryPlaying:Bool = FlxG.sound.music != null && FlxG.sound.music.playing && FlxG.sound.music == scaryMusic;
 
@@ -112,7 +118,7 @@ class MainMenuState extends MusicBeatState
       // musica alternativa (parte da volume 0, l'update() la alza piano)
       if (!scaryPlaying)
       {
-        FlxG.sound.playMusic(Paths.music(SCARY_MUSIC), 0);
+        FlxG.sound.playMusic(Paths.music(scaryMusicName), 0);
         scaryMusic = FlxG.sound.music;
       }
     }
@@ -143,11 +149,11 @@ class MainMenuState extends MusicBeatState
     if (scaryMode)
     {
       scarySprite = new FlxSprite();
-      scarySprite.loadGraphic(Paths.image(SCARY_IMAGE));
-      final targetH:Float = SCARY_HEIGHT * (FlxG.height / 720);
+      scarySprite.loadGraphic(Paths.image(scaryImage));
+      final targetH:Float = scaryHeight * (FlxG.height / 720);
       scarySprite.setGraphicSize(0, targetH); // larghezza proporzionale
       scarySprite.updateHitbox();
-      scarySprite.setPosition(SCARY_X * (FlxG.width / 1280), SCARY_Y * (FlxG.height / 720));
+      scarySprite.setPosition(scaryX * (FlxG.width / 1280), scaryY * (FlxG.height / 720));
       scarySprite.scrollFactor.set(0, 0);
       scarySprite.antialiasing = ClientPrefs.globalAntialiasing;
       add(scarySprite);
@@ -157,9 +163,9 @@ class MainMenuState extends MusicBeatState
     menuItems = new FlxTypedGroup<FlxSprite>();
     add(menuItems);
 
-    final targetX:Float = BUTTON_X * (FlxG.width / 1280);
-    final baseY:Float = BUTTON_Y * (FlxG.height / 720);
-    final spacing:Float = BUTTON_SPACING * (FlxG.height / 720);
+    final targetX:Float = buttonX * (FlxG.width / 1280);
+    final baseY:Float = buttonY * (FlxG.height / 720);
+    final spacing:Float = buttonSpacing * (FlxG.height / 720);
 
     for (i in 0...buttons.length)
     {
@@ -208,6 +214,13 @@ class MainMenuState extends MusicBeatState
 
     if (!selectedSomethin)
     {
+      // F5 = rilegge mainMenu.json e ricostruisce il menu (senza ricompilare)
+      if (FlxG.keys.justPressed.F5)
+      {
+        FlxG.resetState();
+        return;
+      }
+
       if (controls.UI_UP_P)
       {
         FlxG.sound.play(Paths.sound('scrollMenu'));
@@ -240,6 +253,85 @@ class MainMenuState extends MusicBeatState
     }
 
     super.update(elapsed);
+  }
+
+  // ---------------------------------------------------------------
+  // CONFIG JSON
+  // ---------------------------------------------------------------
+  function loadConfig():Void
+  {
+    try
+    {
+      if (!Paths.fileExists(CONFIG_PATH, openfl.utils.AssetType.TEXT))
+      {
+        trace('[MainMenu] ' + CONFIG_PATH + ' non trovato: uso i valori di default');
+        return;
+      }
+
+      final cfg:Dynamic = Json.parse(Paths.getTextFromFile(CONFIG_PATH));
+      if (cfg == null) return;
+
+      final btn:Dynamic = cfgObj(cfg, 'buttons');
+      buttonX = cfgNum(btn, 'x', buttonX);
+      buttonY = cfgNum(btn, 'y', buttonY);
+      buttonSpacing = cfgNum(btn, 'spacing', buttonSpacing);
+
+      if (btn != null && Reflect.hasField(btn, 'list'))
+      {
+        final arr:Array<Dynamic> = Reflect.field(btn, 'list');
+        final list:Array<MenuButton> = [];
+        for (b in arr)
+        {
+          list.push(
+            {
+              id: cfgStr(b, 'id', 'freeplay'),
+              image: cfgStr(b, 'image', 'customMenu/buttons/button2'),
+              idle: cfgStr(b, 'idle', ''),
+              selected: cfgStr(b, 'selected', '')
+            });
+        }
+        if (list.length > 0) buttons = list;
+      }
+
+      final sc:Dynamic = cfgObj(cfg, 'scary');
+      scaryChance = cfgNum(sc, 'chance', scaryChance);
+      scaryImage = cfgStr(sc, 'image', scaryImage);
+      scaryMusicName = cfgStr(sc, 'music', scaryMusicName);
+      scaryX = cfgNum(sc, 'x', scaryX);
+      scaryY = cfgNum(sc, 'y', scaryY);
+      scaryHeight = cfgNum(sc, 'height', scaryHeight);
+
+      trace('[MainMenu] configurazione caricata da ' + CONFIG_PATH);
+    }
+    catch (e:Dynamic)
+    {
+      trace('[MainMenu] errore nel leggere ' + CONFIG_PATH + ': ' + e + ' (uso i valori di default)');
+    }
+  }
+
+  function cfgObj(o:Dynamic, field:String):Dynamic
+  {
+    return (o != null && Reflect.hasField(o, field)) ? Reflect.field(o, field) : null;
+  }
+
+  function cfgNum(o:Dynamic, field:String, def:Float):Float
+  {
+    if (o != null && Reflect.hasField(o, field))
+    {
+      final v:Dynamic = Reflect.field(o, field);
+      if (v != null) return v;
+    }
+    return def;
+  }
+
+  function cfgStr(o:Dynamic, field:String, def:String):String
+  {
+    if (o != null && Reflect.hasField(o, field))
+    {
+      final v:Dynamic = Reflect.field(o, field);
+      if (v != null) return Std.string(v);
+    }
+    return def;
   }
 
   // Elenco dei prefissi delle animazioni presenti nell'xml (nome frame senza il numero finale)
