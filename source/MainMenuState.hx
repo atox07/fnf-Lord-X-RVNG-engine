@@ -42,7 +42,7 @@ class MainMenuState extends MusicBeatState
 
   // Posizione finale del primo bottone (riferita a 1280x720, come nel lua)
   static final BUTTON_X:Float = 820;
-  static final BUTTON_Y:Float = 380;
+  static final BUTTON_Y:Float = 340;
   static final BUTTON_SPACING:Float = 140; // distanza verticale tra i bottoni
 
   // Lampeggio alla conferma (come nel lua)
@@ -51,6 +51,20 @@ class MainMenuState extends MusicBeatState
 
   var menuItems:FlxTypedGroup<FlxSprite>;
   var bg:FlxSprite;
+
+  // ---------------------------------------------------------------
+  // LORD X (appare a caso a ogni ingresso nel menu)
+  // ---------------------------------------------------------------
+  static final SCARY_CHANCE:Float = 60; // probabilita' in % (0-100)
+  static final SCARY_IMAGE:String = 'scaryx'; // mods/images/scaryx.png
+  static final SCARY_MUSIC:String = 'scaryMenu'; // mods/music/scaryMenu.ogg
+  static final SCARY_X:Float = 0; // posizione (riferita a 1280x720)
+  static final SCARY_Y:Float = 0;
+  static final SCARY_HEIGHT:Float = 720; // altezza finale dell'immagine (riferita a 720)
+
+  static var scaryMusic:Dynamic = null; // la musica scary attualmente in riproduzione (se c'e')
+  var scaryMode:Bool = false;
+  var scarySprite:FlxSprite;
 
   private var camGame:FlxCamera;
   private var camAchievement:FlxCamera;
@@ -85,8 +99,33 @@ class MainMenuState extends MusicBeatState
 
     persistentUpdate = persistentDraw = true;
 
-    // la musica parte dal TitleState; se per qualche motivo non sta suonando la riavvio
-    if (FlxG.sound.music == null || !FlxG.sound.music.playing) Paths.playMenuMusic(true);
+    // ----- LORD X: tiro la probabilita' a ogni ingresso nel menu -----
+    // (se manca il png o la musica non rischio crash: resta il menu normale)
+    scaryMode = FlxG.random.bool(SCARY_CHANCE)
+      && Paths.fileExists('images/' + SCARY_IMAGE + '.png', openfl.utils.AssetType.IMAGE)
+      && Paths.fileExists('music/' + SCARY_MUSIC + '.ogg', openfl.utils.AssetType.MUSIC);
+
+    final scaryPlaying:Bool = FlxG.sound.music != null && FlxG.sound.music.playing && FlxG.sound.music == scaryMusic;
+
+    if (scaryMode)
+    {
+      // musica alternativa (parte da volume 0, l'update() la alza piano)
+      if (!scaryPlaying)
+      {
+        FlxG.sound.playMusic(Paths.music(SCARY_MUSIC), 0);
+        scaryMusic = FlxG.sound.music;
+      }
+    }
+    else
+    {
+      // menu normale: se prima suonava la musica scary la sostituisco con quella normale,
+      // se non suona niente la riavvio (la musica normale parte dal TitleState)
+      if (scaryPlaying || FlxG.sound.music == null || !FlxG.sound.music.playing)
+      {
+        Paths.playMenuMusic(true);
+        scaryMusic = null;
+      }
+    }
 
     // ----- SFONDO ANIMATO -----
     bg = new FlxSprite();
@@ -99,6 +138,20 @@ class MainMenuState extends MusicBeatState
     bg.scrollFactor.set(0, 0);
     bg.antialiasing = ClientPrefs.globalAntialiasing;
     add(bg);
+
+    // ----- LORD X (solo se e' uscito il 60%) -----
+    if (scaryMode)
+    {
+      scarySprite = new FlxSprite();
+      scarySprite.loadGraphic(Paths.image(SCARY_IMAGE));
+      final targetH:Float = SCARY_HEIGHT * (FlxG.height / 720);
+      scarySprite.setGraphicSize(0, targetH); // larghezza proporzionale
+      scarySprite.updateHitbox();
+      scarySprite.setPosition(SCARY_X * (FlxG.width / 1280), SCARY_Y * (FlxG.height / 720));
+      scarySprite.scrollFactor.set(0, 0);
+      scarySprite.antialiasing = ClientPrefs.globalAntialiasing;
+      add(scarySprite);
+    }
 
     // ----- BOTTONI -----
     menuItems = new FlxTypedGroup<FlxSprite>();
