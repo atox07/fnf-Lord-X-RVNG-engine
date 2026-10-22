@@ -3,6 +3,7 @@ package;
 import WeekData;
 import editors.ChartingState;
 import flixel.addons.display.FlxBackdrop;
+import flixel.input.keyboard.FlxKey;
 import flixel.util.FlxSave;
 import flixel.util.FlxTimer;
 
@@ -51,6 +52,10 @@ class FreeplayState extends MusicBeatState
   var busy:Bool = false;
 
   var curDifficulty:Int = -1;
+
+  // codice per aprire la canzone segreta: scrivi 0707 nel freeplay
+  static final SECRET_CODE:Array<FlxKey> = [FlxKey.ZERO, FlxKey.SEVEN, FlxKey.ZERO, FlxKey.SEVEN];
+  var secretCodeIndex:Int = 0;
 
   var bg:FlxSprite;
   var blackLine:FlxSprite;
@@ -262,6 +267,8 @@ class FreeplayState extends MusicBeatState
   {
     if (FlxG.sound.music != null && FlxG.sound.music.volume < 0.7) FlxG.sound.music.volume += 0.5 * elapsed;
 
+    if (!busy) checkSecretCode();
+
     if (!busy && weekGroups.length > 0)
     {
       if (inSongs) updateSongsMode();
@@ -270,6 +277,29 @@ class FreeplayState extends MusicBeatState
     }
 
     super.update(elapsed);
+  }
+
+  // 0707 -> ricarica il freeplay con autoStartSecret: la canzone segreta compare e parte da sola
+  function checkSecretCode()
+  {
+    var key:FlxKey = FlxG.keys.firstJustPressed();
+    if (key == FlxKey.NONE) return;
+
+    // il tastierino numerico vale come la riga dei numeri
+    if (key == FlxKey.NUMPADZERO) key = FlxKey.ZERO;
+    if (key == FlxKey.NUMPADSEVEN) key = FlxKey.SEVEN;
+
+    if (key == SECRET_CODE[secretCodeIndex]) secretCodeIndex++;
+    else
+      secretCodeIndex = (key == SECRET_CODE[0]) ? 1 : 0;
+
+    if (secretCodeIndex >= SECRET_CODE.length)
+    {
+      secretCodeIndex = 0;
+      busy = true;
+      autoStartSecret = true;
+      FlxG.resetState();
+    }
   }
 
   function updateWeeksMode()
